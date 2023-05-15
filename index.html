@@ -58,26 +58,57 @@
     var openLevels = 2; // Change this to configure the depth of the open levels
     var folderState = JSON.parse(localStorage.getItem('folderState')) || {};
 
+    function formatFileSize(bytes) {
+      var sizes = [
+        'Bytes',
+        'KB',
+        'MB',
+        'GB',
+        'TB',
+      ];
+      if (bytes == 0) return '0 Byte';
+      var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+      return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
+    }
+
+
     $.get(bucketUrl + '/')
       .done(function (data) {
         var structure = {};
 
-        $(data).find('Key').each(function () {
-          var key = $(this).text();
+        $(data).find('Contents').each(function () {
+          var key = $(this).find('Key').text();
 
           // Exclude objects with a key prefix of 'changes' or a suffix of '.html'
           if (key.startsWith('changes') || key.endsWith('.html')) {
             return true; // Skip this iteration and move on to the next one
           }
 
+          var size = $(this).find('Size').text();
+          var formattedSize = formatFileSize(size);
+          var lastModified = $(this).find('LastModified').text(); // Get the last modified date
+          var etag = $(this).find('ETag').text(); // Get the ETag
+
           var parts = key.split('/');
           var subtree = structure;
 
+
           for (var i = 0; i < parts.length; i++) {
-            if (!subtree[parts[i]]) {
-              subtree[parts[i]] = {};
+            if (i === parts.length - 1) {
+              // It's a file, not a directory, so we store it as an object with a size property
+              subtree[parts[i]] = {
+                size: size,
+                formattedSize: formattedSize,
+                lastModified: lastModified,
+                etag: etag,
+              };
+            } else {
+              // It's a directory
+              if (!subtree[parts[i]]) {
+                subtree[parts[i]] = {};
+              }
+              subtree = subtree[parts[i]];
             }
-            subtree = subtree[parts[i]];
           }
         });
 
@@ -92,18 +123,20 @@
             var extension = key.split('.').pop();
 
             html += '<div class="indent" style="margin-left: ' + (indentLevel * 20) + 'px;">';
-            if (Object.keys(tree[key]).length > 0) {
+
+            if (tree[key].hasOwnProperty('size')) {
+              // It's a file
+              var size = tree[key].formattedSize;
+              if (extension === 'csv' || extension === 'xls' || extension === 'xlsx') {
+                html += '<a class="file csv" href="' + url + '" target="_blank">' + key + ' (' + size + ')</a>';
+              } else {
+                html += '<a class="file" href="' + url + '" target="_blank">' + key + ' (' + size + ')</a>';
+              }
+            } else {
               // It's a folder
               html += '<div class="folder" onclick="toggleFolder(\'' + newPath + '\', this)">' + key + '</div>';
               var isOpen = folderState.hasOwnProperty(newPath) ? folderState[newPath] : indentLevel < openLevels;
               html += '<div id="' + newPath + '" style="' + (isOpen ? 'display: block;' : 'display: none;') + '">' + buildHtml(tree[key], indentLevel + 1, newPath) + '</div>';
-            } else {
-              // It's a file
-              if (extension === 'csv' || extension === 'xls' || extension === 'xlsx') {
-                html += '<a class="file csv" href="' + url + '" target="_blank">' + key + '</a>';
-              } else {
-                html += '<a class="file" href="' + url + '" target="_blank">' + key + '</a>';
-              }
             }
             html += '</div>';
           }
