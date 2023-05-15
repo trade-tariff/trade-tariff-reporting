@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Reports</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <style>
+    .indent {
+      margin-left: 20px;
+    }
+
+    .folder,
+    .file {
+      cursor: pointer;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+      margin-bottom: 5px;
+      text-decoration: none;
+      color: black;
+      display: inline-block;
+      width: calc(100% - 20px);
+    }
+
+    .folder:hover,
+    .file:hover {
+      background-color: #eaeaea;
+    }
+
+    .folder:before {
+      content: "\1F4C1";
+      /* Unicode character for 'Folder' emoji */
+      margin-right: 5px;
+    }
+
+    .file:before {
+      content: "\1F4C4";
+      /* Unicode character for 'Page Facing Up' emoji */
+      margin-right: 5px;
+    }
+
+    .csv:before,
+    .xls:before,
+    .xlsx:before {
+      content: "\1F4C3";
+      /* Unicode character for 'Spreadsheet' emoji */
+      margin-right: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Online Trade Tariff Reports Directory</h1>
+  <div id="content"></div>
+  <script>
+    var bucketUrl = 'https://reporting.trade-tariff.service.gov.uk';
+    var openLevels = 2; // Change this to configure the depth of the open levels
+    var folderState = JSON.parse(localStorage.getItem('folderState')) || {};
+
+    $.get(bucketUrl + '/')
+      .done(function (data) {
+        var structure = {};
+
+        $(data).find('Key').each(function () {
+          var key = $(this).text();
+
+          // Exclude objects with a key prefix of 'changes' or a suffix of '.html'
+          if (key.startsWith('changes') || key.endsWith('.html')) {
+            return true; // Skip this iteration and move on to the next one
+          }
+
+          var parts = key.split('/');
+          var subtree = structure;
+
+          for (var i = 0; i < parts.length; i++) {
+            if (!subtree[parts[i]]) {
+              subtree[parts[i]] = {};
+            }
+            subtree = subtree[parts[i]];
+          }
+        });
+
+        function buildHtml(tree, indentLevel, path = '') {
+          var html = '';
+          var sortedKeys = Object.keys(tree).sort();
+
+          for (var i = 0; i < sortedKeys.length; i++) {
+            var key = sortedKeys[i];
+            var newPath = path + '/' + key;
+            var url = bucketUrl + newPath;
+            var extension = key.split('.').pop();
+
+            html += '<div class="indent" style="margin-left: ' + (indentLevel * 20) + 'px;">';
+            if (Object.keys(tree[key]).length > 0) {
+              // It's a folder
+              html += '<div class="folder" onclick="toggleFolder(\'' + newPath + '\', this)">' + key + '</div>';
+              var isOpen = folderState.hasOwnProperty(newPath) ? folderState[newPath] : indentLevel < openLevels;
+              html += '<div id="' + newPath + '" style="' + (isOpen ? 'display: block;' : 'display: none;') + '">' + buildHtml(tree[key], indentLevel + 1, newPath) + '</div>';
+            } else {
+              // It's a file
+              if (extension === 'csv' || extension === 'xls' || extension === 'xlsx') {
+                html += '<a class="file csv" href="' + url + '" target="_blank">' + key + '</a>';
+              } else {
+                html += '<a class="file" href="' + url + '" target="_blank">' + key + '</a>';
+              }
+            }
+            html += '</div>';
+          }
+
+          return html;
+        }
+
+        $('#content').html(buildHtml(structure, 0));
+
+        window.toggleFolder = function (path, el) {
+          $(el).next().toggle();
+          folderState[path] = !folderState[path];
+          localStorage.setItem('folderState', JSON.stringify(folderState));
+        };
+      })
+      .fail(function (error) {
+        console.log('There was an error: ', error);
+      });
+  </script>
+</body>
+
+</html>
