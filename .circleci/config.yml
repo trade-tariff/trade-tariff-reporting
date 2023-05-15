@@ -29,3 +29,7 @@ workflows:
     jobs:
       - deploy:
           context: trade-tariff-bot-aws-production
+          filters:
+            branches:
+              ignore:
+                - main
