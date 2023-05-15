@@ -1,0 +1,31 @@
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@2.0.3
+
+jobs:
+  deploy:
+    docker:
+      - image: cimg/base:2023.05
+    steps:
+      - aws-cli/install
+      - checkout
+      - run:
+          name: "Deploy"
+          command: |
+            aws s3 cp index.html s3://trade-tariff-reporting/
+
+            DISTRIBUTION_ID=$(aws cloudfront list-distributions | \
+              jq -r '.DistributionList.Items[] | select(.Aliases.Items[]? | contains("reporting.trade-tariff.service.gov.uk")) | .Id')
+
+            aws cloudfront create-invalidation \
+              --distribution-id $DISTRIBUTION_ID \
+              --paths "/index.html"
+
+workflows:
+  version: 2
+
+  deploy:
+    jobs:
+      - deploy:
+          context: trade-tariff-bot-aws-production
