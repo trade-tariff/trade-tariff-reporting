@@ -31,5 +31,5 @@ workflows:
           context: trade-tariff-bot-aws-production
           filters:
             branches:
-              ignore:
+              only:
                 - main
