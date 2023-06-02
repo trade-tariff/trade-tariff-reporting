@@ -2,7 +2,8 @@
 <html>
 
 <head>
-  <title>Reports</title>
+  <link rel="icon" type="image/png" href="https://reporting.trade-tariff.service.gov.uk/favicon.ico">
+  <title>Tariff Reporting Directory</title>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <style>
     .indent {
@@ -54,12 +55,15 @@
   <h1>Online Trade Tariff Reports Directory</h1>
   <div id="content"></div>
   <script>
-    var bucketUrl = 'https://reporting.trade-tariff.service.gov.uk';
-    var openLevels = 2; // Change this to configure the depth of the open levels
-    var folderState = JSON.parse(localStorage.getItem('folderState')) || {};
+    const bucketUrl = 'https://reporting.trade-tariff.service.gov.uk';
+    const openLevels = 2; // Change this to configure the depth of the open levels
+    const folderState = JSON.parse(localStorage.getItem('folderState')) || {};
+    const structure = {};
+    const maxKeys = 5000;
+    const bucketPrefixes = ['uk', 'xi'];
 
     function formatFileSize(bytes) {
-      var sizes = [
+      const sizes = [
         'Bytes',
         'KB',
         'MB',
@@ -67,94 +71,97 @@
         'TB',
       ];
       if (bytes == 0) return '0 Byte';
-      var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+      const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
       return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
     }
 
+    function fetchData(prefix, callback) {
+      return new Promise((resolve, reject) => {
+        $.get(bucketUrl + '/?prefix=' + prefix)
+          .done(function (data) {
+            $(data).find('Contents').each(function () {
+              const key = $(this).find('Key').text();
+              const size = $(this).find('Size').text();
+              const formattedSize = formatFileSize(size);
+              const lastModified = $(this).find('LastModified').text();
+              const etag = $(this).find('ETag').text();
 
-    $.get(bucketUrl + '/')
-      .done(function (data) {
-        var structure = {};
+              const parts = key.split('/');
+              let subtree = structure;
 
-        $(data).find('Contents').each(function () {
-          var key = $(this).find('Key').text();
-
-          // Exclude objects with a key prefix of 'changes' or a suffix of '.html'
-          if (key.startsWith('changes') || key.endsWith('.html')) {
-            return true; // Skip this iteration and move on to the next one
-          }
-
-          var size = $(this).find('Size').text();
-          var formattedSize = formatFileSize(size);
-          var lastModified = $(this).find('LastModified').text(); // Get the last modified date
-          var etag = $(this).find('ETag').text(); // Get the ETag
-
-          var parts = key.split('/');
-          var subtree = structure;
-
-
-          for (var i = 0; i < parts.length; i++) {
-            if (i === parts.length - 1) {
-              // It's a file, not a directory, so we store it as an object with a size property
-              subtree[parts[i]] = {
-                size: size,
-                formattedSize: formattedSize,
-                lastModified: lastModified,
-                etag: etag,
-              };
-            } else {
-              // It's a directory
-              if (!subtree[parts[i]]) {
-                subtree[parts[i]] = {};
+              for (let i = 0; i < parts.length; i++) {
+                if (i === parts.length - 1) {
+                  subtree[parts[i]] = {
+                    size: size,
+                    formattedSize: formattedSize,
+                    lastModified: lastModified,
+                    etag: etag,
+                  };
+                } else {
+                  if (!subtree[parts[i]]) {
+                    subtree[parts[i]] = {};
+                  }
+                  subtree = subtree[parts[i]];
+                }
               }
-              subtree = subtree[parts[i]];
-            }
-          }
-        });
+            });
 
-        function buildHtml(tree, indentLevel, path = '') {
-          var html = '';
-          var sortedKeys = Object.keys(tree).sort();
-
-          for (var i = 0; i < sortedKeys.length; i++) {
-            var key = sortedKeys[i];
-            var newPath = path + '/' + key;
-            var url = bucketUrl + newPath;
-            var extension = key.split('.').pop();
-
-            html += '<div class="indent" style="margin-left: ' + (indentLevel + 20) + 'px;">';
-
-            if (tree[key].hasOwnProperty('size')) {
-              // It's a file
-              var size = tree[key].formattedSize;
-              if (extension === 'csv' || extension === 'xls' || extension === 'xlsx') {
-                html += '<a class="file csv" href="' + url + '" target="_blank">' + key + ' (' + size + ')</a>';
-              } else {
-                html += '<a class="file" href="' + url + '" target="_blank">' + key + ' (' + size + ')</a>';
-              }
-            } else {
-              // It's a folder
-              html += '<div class="folder" onclick="toggleFolder(\'' + newPath + '\', this)">' + key + '</div>';
-              var isOpen = folderState.hasOwnProperty(newPath) ? folderState[newPath] : indentLevel < openLevels;
-              html += '<div id="' + newPath + '" style="' + (isOpen ? 'display: block;' : 'display: none;') + '">' + buildHtml(tree[key], indentLevel + 1, newPath) + '</div>';
-            }
-            html += '</div>';
-          }
-
-          return html;
-        }
-
-        $('#content').html(buildHtml(structure, 0));
-
-        window.toggleFolder = function (path, el) {
-          $(el).next().toggle();
-          folderState[path] = !folderState[path];
-          localStorage.setItem('folderState', JSON.stringify(folderState));
-        };
-      })
-      .fail(function (error) {
-        console.log('There was an error: ', error);
+            resolve(); // Resolve the Promise after successful fetchData
+          })
+          .fail(function (error) {
+            console.log('There was an error: ', error);
+            reject();  // Reject the Promise if fetchData fails
+          });
       });
+    }
+
+    async function fetchDataForAllPrefixes() {
+      for (const prefix of bucketPrefixes) {
+        await fetchData(prefix);
+      }
+
+      $('#content').html(buildHtml(structure, 0));
+
+      window.toggleFolder = function (path, el) {
+        $(el).next().toggle();
+        folderState[path] = !folderState[path];
+        localStorage.setItem('folderState', JSON.stringify(folderState));
+      };
+    }
+
+    function buildHtml(tree, indentLevel, path = '') {
+      let html = '';
+      const sortedKeys = Object.keys(tree).sort();
+
+      for (let i = 0; i < sortedKeys.length; i++) {
+        const key = sortedKeys[i];
+        const newPath = path + '/' + key;
+        const url = bucketUrl + newPath;
+        const extension = key.split('.').pop();
+
+        html += '<div class="indent" style="margin-left: ' + (indentLevel + 20) + 'px;">';
+
+        if (tree[key].hasOwnProperty('size')) {
+          // It's a file
+          const size = tree[key].formattedSize;
+          if (extension === 'csv' || extension === 'xls' || extension === 'xlsx') {
+            html += '<a class="file csv" href="' + url + '" target="_blank">' + key + ' (' + size + ')</a>';
+          } else {
+            html += '<a class="file" href="' + url + '" target="_blank">' + key + ' (' + size + ')</a>';
+          }
+        } else {
+          // It's a folder
+          html += '<div class="folder" onclick="toggleFolder(\'' + newPath + '\', this)">' + key + '</div>';
+          const isOpen = folderState.hasOwnProperty(newPath) ? folderState[newPath] : indentLevel < openLevels;
+          html += '<div id="' + newPath + '" style="' + (isOpen ? 'display: block;' : 'display: none;') + '">' + buildHtml(tree[key], indentLevel + 1, newPath) + '</div>';
+        }
+        html += '</div>';
+      }
+
+      return html;
+    }
+
+    fetchDataForAllPrefixes();
   </script>
 </body>
 
