@@ -3,6 +3,18 @@ version: 2.1
 orbs:
   aws-cli: circleci/aws-cli@2.0.3
 
+filter-not-main: &filter-not-main
+  filters:
+    branches:
+      ignore:
+        - main
+
+filter-main: &filter-main
+  filters:
+    branches:
+      only:
+        - main
+
 jobs:
   deploy:
     docker:
@@ -11,25 +23,41 @@ jobs:
       - aws-cli/install
       - checkout
       - run:
+          name: "Build"
+          command: |
+            sed -i "s}REPORTING_DOMAIN}$REPORTING_DOMAIN}" index.html
+      - run:
           name: "Deploy"
           command: |
-            aws s3 cp index.html s3://trade-tariff-reporting/
-
-            DISTRIBUTION_ID=$(aws cloudfront list-distributions | \
-              jq -r '.DistributionList.Items[] | select(.Aliases.Items[]? | contains("reporting.trade-tariff.service.gov.uk")) | .Id')
+            aws s3 cp favicon.ico s3://$REPORTING_BUCKET_NAME/
+            aws s3 cp index.html s3://$REPORTING_BUCKET_NAME/
 
             aws cloudfront create-invalidation \
-              --distribution-id $DISTRIBUTION_ID \
+              --distribution-id $REPORTING_DISTRIBUTION_ID \
               --paths "/index.html"
 
 workflows:
   version: 2
+  deploy-to-development:
+    jobs:
+      - deploy:
+          context: trade-tariff-reporting-development
+          <<: *filter-not-main
 
-  deploy:
+  deploy-to-staging:
+    jobs:
+      - deploy:
+          context: trade-tariff-reporting-staging
+          <<: *filter-main
+
+  deploy-to-production:
+    jobs:
+      - deploy:
+          context: trade-tariff-reporting-production
+          <<: *filter-main
+
+  deploy-to-old-production:
     jobs:
       - deploy:
           context: trade-tariff-bot-aws-production
-          filters:
-            branches:
-              only:
-                - main
+          <<: *filter-main
