@@ -60,7 +60,36 @@
     const folderState = JSON.parse(localStorage.getItem('folderState')) || {};
     const structure = {};
     const maxKeys = 5000;
-    const bucketPrefixes = ['uk', 'xi'];
+    // AWS Truncates data so to avoid truncated data problems each month's data is loaded separately.
+    // See Jira OTT-224 https://transformuk.atlassian.net/browse/OTT-224
+    const startDate = new Date(2023, 9);  // October 2023 as this is when AWS migration happened.
+    const bucketPrefixes = generateMonthlyPrefixes(startDate);
+    
+    // Function to get an array of months from a start date to the current date
+    function generateMonthlyPrefixes(startDate) {
+      const prefixes = [];  
+      const currentDate = new Date(); 
+      let currentYear = startDate.getFullYear();
+      let currentMonth = startDate.getMonth() + 1;
+
+      while (currentYear < currentDate.getFullYear() || 
+            (currentYear === currentDate.getFullYear() && currentMonth <= currentDate.getMonth() + 1)) {
+        const formattedMonth = currentMonth.toString().padStart(2, '0');  // Ensure 2-digit month format
+
+        const ukPrefix = `uk/reporting/${currentYear}/${formattedMonth}`;
+        const xiPrefix = `xi/reporting/${currentYear}/${formattedMonth}`;
+
+        prefixes.push(ukPrefix);  
+        prefixes.push(xiPrefix);
+        
+        currentMonth++;
+        if (currentMonth > 12) {
+          currentMonth = 1;  // Reset to January
+          currentYear++;  // Increment the year
+        }
+      }
+      return prefixes;
+    }
 
     function formatFileSize(bytes) {
       const sizes = [
