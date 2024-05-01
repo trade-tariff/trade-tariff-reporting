@@ -60,7 +60,36 @@
     const folderState = JSON.parse(localStorage.getItem('folderState')) || {};
     const structure = {};
     const maxKeys = 5000;
-    const bucketPrefixes = ['uk', 'xi'];
+   
+    // Get the past three months' prefixes
+    const bucketPrefixes = generateLastThreeMonthsPrefixes();
+    
+    function generateLastThreeMonthsPrefixes() {
+    const prefixes = [];
+    const currentDate = new Date();
+    let currentYear = currentDate.getFullYear();
+    let currentMonth = currentDate.getMonth() + 1;
+
+    // Calculate the starting point for the last three months
+    const startMonth = currentMonth - 2;
+    const startYear = startMonth <= 0 ? currentYear - 1 : currentYear;
+    const startAdjustedMonth = startMonth <= 0 ? 12 + startMonth : startMonth;
+
+    // Generate the range of prefixes for the past three months
+    for (let i = 0; i < 3; i++) {
+      const month = (startAdjustedMonth + i) % 12 || 12;
+      const year = (startAdjustedMonth + i) > 12 ? startYear + 1 : startYear;
+      
+      const formattedMonth = month.toString().padStart(2, '0');  // Ensure 2-digit month format
+      const ukPrefix = `uk/reporting/${year}/${formattedMonth}`;
+      const xiPrefix = `xi/reporting/${year}/${formattedMonth}`;
+
+      prefixes.push(ukPrefix);  
+      prefixes.push(xiPrefix);
+    }
+
+    return prefixes;
+  }
 
     function formatFileSize(bytes) {
       const sizes = [
