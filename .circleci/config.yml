@@ -32,32 +32,25 @@ jobs:
             aws s3 cp favicon.ico s3://$REPORTING_BUCKET_NAME/
             aws s3 cp index.html s3://$REPORTING_BUCKET_NAME/
 
-            aws cloudfront create-invalidation \
-              --distribution-id $REPORTING_DISTRIBUTION_ID \
-              --paths "/index.html"
-
 workflows:
   version: 2
   deploy-to-development:
     jobs:
       - deploy:
+          name: deploy-development
           context: trade-tariff-reporting-development
           <<: *filter-not-main
 
   deploy-to-staging:
     jobs:
       - deploy:
+          name: deploy-staging
           context: trade-tariff-reporting-staging
           <<: *filter-main
 
   deploy-to-production:
     jobs:
       - deploy:
+          name: deploy-production
           context: trade-tariff-reporting-production
-          <<: *filter-main
-
-  deploy-to-old-production:
-    jobs:
-      - deploy:
-          context: trade-tariff-bot-aws-production
           <<: *filter-main
