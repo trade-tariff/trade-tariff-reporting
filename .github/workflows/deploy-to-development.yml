@@ -1,0 +1,37 @@
+name: Buld and Deploy to Development
+
+on:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+permissions:
+    id-token: write
+    contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  IAM_ROLE_ARN: arn:aws:iam::844815912454:role/GithubActions-Reporting-Role
+  REPORTING_BUCKET_NAME: trade-tariff-reporting-844815912454 
+  REPORTING_DOMAIN: https://reporting.dev.trade-tariff.service.gov.uk
+
+jobs:
+    build-deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+    
+            - uses: aws-actions/configure-aws-credentials@v4
+              with:
+                role-to-assume: ${{ env.IAM_ROLE_ARN }}
+                aws-region: ${{ env.AWS_REGION }}
+    
+            - name: Build
+              run: sed -i "s}REPORTING_DOMAIN}$REPORTING_DOMAIN}" index.html
+        
+            - name: Deploy to S3
+              run: |
+                aws s3 cp favicon.ico s3://$REPORTING_BUCKET_NAME/
+                aws s3 cp index.html s3://$REPORTING_BUCKET_NAME/
+
