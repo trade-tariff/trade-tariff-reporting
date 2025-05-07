@@ -1,0 +1,40 @@
+name: Buld and Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ["Buld and Deploy to Staging"]
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+    id-token: write
+    contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  IAM_ROLE_ARN: arn:aws:iam::382373577178:role/GithubActions-Reporting-Role
+  REPORTING_BUCKET_NAME: trade-tariff-reporting-382373577178
+  REPORTING_DOMAIN: https://reporting.trade-tariff.service.gov.uk
+
+jobs:
+    build-deploy:
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+    
+            - uses: aws-actions/configure-aws-credentials@v4
+              with:
+                role-to-assume: ${{ env.IAM_ROLE_ARN }}
+                aws-region: ${{ env.AWS_REGION }}
+    
+            - name: Build
+              run: sed -i "s}REPORTING_DOMAIN}$REPORTING_DOMAIN}" index.html
+        
+            - name: Deploy to S3
+              run: |
+                aws s3 cp favicon.ico s3://$REPORTING_BUCKET_NAME/
+                aws s3 cp index.html s3://$REPORTING_BUCKET_NAME/
+                aws s3 cp robots.txt s3://$REPORTING_BUCKET_NAME/
+
