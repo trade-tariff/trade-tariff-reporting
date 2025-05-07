@@ -34,4 +34,5 @@ jobs:
               run: |
                 aws s3 cp favicon.ico s3://$REPORTING_BUCKET_NAME/
                 aws s3 cp index.html s3://$REPORTING_BUCKET_NAME/
+                aws s3 cp robots.txt s3://$REPORTING_BUCKET_NAME/
 
